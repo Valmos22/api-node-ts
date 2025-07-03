@@ -3,6 +3,7 @@ import { NextFunction, Request, Response } from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { Op } from 'sequelize';
+import getConnection from '../database/connectionQuery';
 import Usuario from '../models/usuario';
 
 //Creamos metodos GET, POST, PUT, DELETE
@@ -157,8 +158,33 @@ export const putUsuario = async(req:Request,res:Response):Promise<void>=>{
 
 }
 
-export const deleteUsuario = (req: Request, res: Response) => {
+export const deleteUsuario = async (req: Request, res: Response) => {
 
     const {id} = req.params;
+
+    try {
+        //Esta coneccion solo se ejecuta cuando la llammemos
+        const connection = await getConnection();
+
+        //Verificamos si el usuario existe
+        const [rows] = await connection.query('SELECT * FROM usuarios WHERE id = ?', [id])
+
+        if((rows as any).length === 0){
+            return res.status(404).json({message: "El usuario no se encuentra en la base de datos"});
+        }
+
+        //Eliminamos la imagen de nuestro servidor
+        const {imagen} = (rows as any)[0];
+        await fs.unlink(path.resolve(`uploads/${imagen}`));
+        console.log("Imagen eliminada del servidor")
+
+        //Eliminamos el usuario del servidor
+        await connection.query('DELETE FROM usuarios WHERE id= ?',[id])
+        res.json({message: "El usuario se elimino correctamente"})
+
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({message: "Error interno del servidor"})
+    }
 
 }
