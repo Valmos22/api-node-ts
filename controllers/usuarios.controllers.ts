@@ -1,0 +1,164 @@
+import bcrypt from 'bcryptjs';
+import { NextFunction, Request, Response } from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { Op } from 'sequelize';
+import Usuario from '../models/usuario';
+
+//Creamos metodos GET, POST, PUT, DELETE
+
+export const getUsuarios = async (req: Request, res: Response) => {
+
+    const usuarios = await Usuario.findAll({
+        attributes: {exclude:['password']}
+    });
+
+    res.json(usuarios)
+}
+
+export const getUsuario = async (req: Request, res: Response) => {
+
+    const {id} = req.params;
+    const usuario = await Usuario.findByPk(id, {
+        attributes: {exclude:['password']}
+    })
+
+    res.json(usuario)
+}
+
+export const postUsuarios = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    
+    try {
+        const {body} = req;
+        const {nombre, email, password} = body
+
+        if(!nombre || !email || !password){
+            res.status(400).json({
+                message: "Los campos nombre, email y contraseña son obligatorios"
+            })
+        }
+
+        const existeEmail = await Usuario.findOne({where: {email}})
+
+        if(existeEmail) {
+            if(req.file){
+                await fs.unlink(path.resolve(req.file.path));
+            }
+
+            res.status(400).json({
+                message: `El ${email} ya esta registrado`
+            })
+            return;
+        }
+
+        if(req.file){
+            body.imagen = req.file.filename;
+        }else{
+            body.imagen = null
+        }
+
+        const salt = bcrypt.genSaltSync(10);
+        body.password = bcrypt.hashSync(password, salt);
+
+        const usuario = Usuario.build(body);
+        await usuario.save();
+
+        const {password:_, ...UsuarioSinPassword} = usuario.toJSON();
+        res.status(201).json(UsuarioSinPassword)
+
+
+    } catch (error) {
+        next(error);
+    }
+}
+
+export const putUsuario = async(req:Request,res:Response):Promise<void>=>{
+
+    const {id} = req.params;
+    const body = req.body;
+
+    try {
+
+        const usuario = await Usuario.findByPk(id);
+        const usuarioData = usuario?.toJSON();
+
+        if(!usuario){
+            res.status(404).json({message:'El usuario no existe'});
+            return;
+        }
+
+        if (body.email) {
+
+            const emailExistente = await Usuario.findOne({
+                where:{email:body.email, id:{[Op.ne]:id}}
+            });
+
+           if(emailExistente){
+
+            res.status(400).json({message:`El email ${body.email} ya esta registrado`});
+
+            if (req.file) {
+
+                await fs.unlink(path.resolve(req.file.path));
+                
+            }
+            return;
+
+           }
+           
+           if(req.file){
+
+            const nuevaImagen = req.file.filename;
+
+            if (usuarioData?.email) {
+
+                const imagePath = path.resolve(`uploads/${usuarioData.imagen}`);
+
+                try {
+                    if (req.file) {
+                        await fs.unlink(path.resolve(imagePath));                        
+                    }
+                } catch (error) {
+
+                    console.error(`Error al eliminar la imagen anterior:${error}`);
+                    
+                }
+                
+            }
+
+            body.imagen = nuevaImagen;
+
+           }else{
+
+            delete body.imagen;
+
+           }
+            
+        }
+    if(body.password){
+
+        const salt = bcrypt.genSaltSync(10);
+        body.password = bcrypt.hashSync(body.password,salt);
+
+    }
+    
+    await usuario.update(body); 
+    
+    const {password:_, ...usuarioSinPassword} = usuario.toJSON();
+
+    res.json(usuarioSinPassword);
+        
+    } catch (error) {
+
+        console.error(error);
+        res.status(500).json({message:'Error interno del servidor'});
+        
+    }   
+
+}
+
+export const deleteUsuario = (req: Request, res: Response) => {
+
+    const {id} = req.params;
+
+}
