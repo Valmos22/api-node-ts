@@ -43,7 +43,7 @@ class Server {
         //Es middleware es para servir archivos staticos desde un directorio
         this.app.use(express.static('public'))
         //Cargar rutas de imagenes
-        this.app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+        this.app.use("/uploads", express.static(path.join(__dirname, "../../uploads")));
 
         //manejo de errores del multer
         this.app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction)=>{

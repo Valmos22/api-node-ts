@@ -1,9 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { NextFunction, Request, Response } from 'express';
 import fs from 'fs/promises';
+import jwt from 'jsonwebtoken';
 import path from 'path';
 import { Op } from 'sequelize';
+import { JWT_SECRET } from '../database/configJwt';
 import Usuario from '../models/usuario';
+
 
 //Creamos metodos GET, POST, PUT, DELETE
 
@@ -160,5 +163,40 @@ export const putUsuario = async(req:Request,res:Response):Promise<void>=>{
 export const deleteUsuario = (req: Request, res: Response) => {
 
     const {id} = req.params;
+
+}
+
+export const login = async (req: Request, res: Response) => {
+
+    const {email, password} = req.body;
+
+    try {
+        const usuario = await Usuario.findOne({where: {email}});
+        const usuarioData = usuario?.toJSON();
+
+        if(!usuario){
+            res.status(404).json({message: "Credencial incorrecta"});
+        }
+
+        const validPassword = await bcrypt.compare(password, usuarioData.password);
+
+        if(!validPassword){
+            res.status(400).json({message: "Credenciales incorrectas"});
+        }
+
+        const token = jwt.sign({
+            id: usuarioData.id,
+            email: usuarioData.email,
+            nombre: usuarioData.nombre,
+            imagen: usuarioData.imagen,
+            estado: usuarioData.estado
+        }, JWT_SECRET, {expiresIn: "24h"});
+
+        res.json(token)
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({message:'Error interno del servidor'});
+    }
 
 }

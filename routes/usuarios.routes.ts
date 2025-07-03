@@ -3,11 +3,13 @@ import {
     deleteUsuario,
     getUsuario,
     getUsuarios,
+    login,
     postUsuarios,
-    putUsuario
+    putUsuario,
 } from '../controllers/usuarios.controllers';
 
 import { upload } from '../middlewares/multerConfig';
+import { verificarToken } from "../middlewares/verificarToken";
 
 const router = Router()
 
@@ -19,11 +21,12 @@ const asyncHandler = (fn: Function)=> {
 }
 
 //Definimos nuestras rutas
-router.get('/', asyncHandler(getUsuarios))
-router.get('/:id', asyncHandler(getUsuario))
-router.post('/',upload.single('imagen'), asyncHandler(postUsuarios))
-router.put('/:id',upload.single('imagen'), asyncHandler(putUsuario))
-router.delete('/:id', asyncHandler(deleteUsuario))
+router.get('/', verificarToken, asyncHandler(getUsuarios))
+router.get('/:id', verificarToken, asyncHandler(getUsuario))
+router.post('/', verificarToken, upload.single('imagen'), asyncHandler(postUsuarios))
+router.put('/:id', verificarToken, upload.single('imagen'), asyncHandler(putUsuario))
+router.delete('/:id', verificarToken, asyncHandler(deleteUsuario))
+router.post('/login', asyncHandler(login))
 
 //Eportamos el router
 export default router;
