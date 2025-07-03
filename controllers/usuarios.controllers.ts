@@ -1,10 +1,12 @@
 import bcrypt from 'bcryptjs';
 import { NextFunction, Request, Response } from 'express';
 import fs from 'fs/promises';
+import jwt from 'jsonwebtoken';
 import path from 'path';
 import { Op } from 'sequelize';
-import getConnection from '../database/connectionQuery';
+import { JWT_SECRET } from '../database/configJwt';
 import Usuario from '../models/usuario';
+
 
 //Creamos metodos GET, POST, PUT, DELETE
 
@@ -162,29 +164,39 @@ export const deleteUsuario = async (req: Request, res: Response) => {
 
     const {id} = req.params;
 
+}
+
+export const login = async (req: Request, res: Response) => {
+
+    const {email, password} = req.body;
+
     try {
-        //Esta coneccion solo se ejecuta cuando la llammemos
-        const connection = await getConnection();
+        const usuario = await Usuario.findOne({where: {email}});
+        const usuarioData = usuario?.toJSON();
 
-        //Verificamos si el usuario existe
-        const [rows] = await connection.query('SELECT * FROM usuarios WHERE id = ?', [id])
-
-        if((rows as any).length === 0){
-            return res.status(404).json({message: "El usuario no se encuentra en la base de datos"});
+        if(!usuario){
+            res.status(404).json({message: "Credencial incorrecta"});
         }
 
-        //Eliminamos la imagen de nuestro servidor
-        const {imagen} = (rows as any)[0];
-        await fs.unlink(path.resolve(`uploads/${imagen}`));
-        console.log("Imagen eliminada del servidor")
+        const validPassword = await bcrypt.compare(password, usuarioData.password);
 
-        //Eliminamos el usuario del servidor
-        await connection.query('DELETE FROM usuarios WHERE id= ?',[id])
-        res.json({message: "El usuario se elimino correctamente"})
+        if(!validPassword){
+            res.status(400).json({message: "Credenciales incorrectas"});
+        }
+
+        const token = jwt.sign({
+            id: usuarioData.id,
+            email: usuarioData.email,
+            nombre: usuarioData.nombre,
+            imagen: usuarioData.imagen,
+            estado: usuarioData.estado
+        }, JWT_SECRET, {expiresIn: "24h"});
+
+        res.json(token)
 
     } catch (error) {
-        console.log(error)
-        res.status(500).json({message: "Error interno del servidor"})
+        console.error(error);
+        res.status(500).json({message:'Error interno del servidor'});
     }
 
 }
